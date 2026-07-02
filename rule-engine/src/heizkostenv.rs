@@ -9,7 +9,7 @@ pub const MAX_VERBRAUCHSANTEIL: f64 = 0.70;
 pub fn check_heizkosten(
     total_heating_costs: f64,
     consumption_based_amount: f64,
-    area_based_amount: f64,
+    _area_based_amount: f64,
     has_fernablesbare_zaehler: bool,
 ) -> Vec<Finding> {
     let mut findings = Vec::new();
@@ -57,7 +57,7 @@ pub fn check_heizkosten(
     if !has_fernablesbare_zaehler {
         findings.push(Finding {
             check_id: "HKV_03".into(),
-            description: "Keine fernablesbaren Zaehler dokumentiert (Pflicht seit 01.12.2022)",
+            description: "Keine fernablesbaren Zaehler dokumentiert (Pflicht seit 01.12.2022)".to_string(),
             severity: Severity::Medium,
             legal_ref: Some("HeizkostenV § 5 Abs. 2".into()),
             affected_position: None,

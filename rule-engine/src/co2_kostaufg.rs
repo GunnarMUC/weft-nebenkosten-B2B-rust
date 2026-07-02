@@ -19,7 +19,7 @@ const STUFEN: [(f64, f64, f64); 10] = [
 
 /// Ermittelt die CO2-Stufe basierend auf dem spezifischen CO2-Ausstoss (kg/m2/a).
 pub fn get_stufe(co2_per_sqm: f64) -> (usize, f64) {
-    for (i, &(min, _max, anteil)) in STUFEN.iter().enumerate() {
+    for (i, &(_min, _max, anteil)) in STUFEN.iter().enumerate() {
         if co2_per_sqm <= _max || i == 9 {
             return (i + 1, anteil); // 1-basiert
         }

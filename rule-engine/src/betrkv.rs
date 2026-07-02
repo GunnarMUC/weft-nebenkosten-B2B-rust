@@ -31,11 +31,11 @@ pub fn check_positions(classified: &[ClassifiedPosition]) -> Vec<Finding> {
 
     for pos in classified {
         // Kabelanschluss-Stichtag (Kategorie 15)
-        if pos.category == "15" {
-            if pos.abr_period_end.as_deref().unwrap_or("1970-01-01") >= KABEL_STICHTAG {
+        if pos.category == "15"
+            && pos.abr_period_end.as_deref().unwrap_or("1970-01-01") >= KABEL_STICHTAG {
                 findings.push(Finding {
                     check_id: "BETRKV_01".into(),
-                    description: "Kabelanschlusskosten nach Stichtag 01.07.2024 ",
+                    description: "Kabelanschlusskosten nach Stichtag 01.07.2024".to_string(),
                     severity: Severity::High,
                     legal_ref: Some("TKG § 71, BetrKV § 2 Nr. 15".into()),
                     affected_position: Some(pos.bezeichnung.clone()),
@@ -44,7 +44,6 @@ pub fn check_positions(classified: &[ClassifiedPosition]) -> Vec<Finding> {
                     recommendation: Some("Kostenposition beanstanden, Rueckforderung prufen".into()),
                 });
             }
-        }
 
         // Kategorie "UNBEKANNT"
         if pos.category == "UNBEKANNT" && pos.betrag > 0.0 {
@@ -64,7 +63,7 @@ pub fn check_positions(classified: &[ClassifiedPosition]) -> Vec<Finding> {
         if pos.category == "17" {
             findings.push(Finding {
                 check_id: "BETRKV_03".into(),
-                description: "Sonstige Betriebskosten (§ 2 Nr. 17) -- ",
+                description: "Sonstige Betriebskosten (§ 2 Nr. 17) -- ".to_string(),
                 severity: Severity::Low,
                 legal_ref: Some("BetrKV § 2 Nr. 17".into()),
                 affected_position: Some(pos.bezeichnung.clone()),
@@ -80,7 +79,7 @@ pub fn check_positions(classified: &[ClassifiedPosition]) -> Vec<Finding> {
     if !has_verteilschluessel {
         findings.push(Finding {
             check_id: "BETRKV_04".into(),
-            description: "Nicht alle Kostenpositionen haben einen dokumentierten Verteilerschluessel",
+            description: "Nicht alle Kostenpositionen haben einen dokumentierten Verteilerschluessel".to_string(),
             severity: Severity::Medium,
             legal_ref: Some("BGB § 556 Abs. 3".into()),
             affected_position: None,

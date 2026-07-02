@@ -106,9 +106,8 @@ pub fn check_mischobjekt_vorwegabzuege(
         }
 
         // Wenn Kosten der Wohnnutzung zugeordnet sind, aber voll auf Gewerbe umgelegt
-        if zuordnung == "wohn" {
+        if *zuordnung == "wohn" {
             let gewerbe_anteil_flaeche = gewerbe_flaeche / gesamt_flaeche;
-            let tolerable_anteil = *betrag * gewerbe_anteil_flaeche;
 
             findings.push(Finding {
                 check_id: "GEW_04".into(),

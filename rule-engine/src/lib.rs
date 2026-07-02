@@ -21,7 +21,7 @@ pub mod plausibilitaet;
 use serde::{Deserialize, Serialize};
 
 /// Severity of a finding (1 = low, 5 = critical)
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Serialize, Deserialize)]
 pub enum Severity {
     Low = 1,
     Medium = 2,
