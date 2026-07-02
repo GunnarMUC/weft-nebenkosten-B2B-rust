@@ -1,0 +1,41 @@
+{
+  "expectedFindings": [
+    {
+      "checkId": "HKV_VERTEILUNG",
+      "description": "Verbrauchsanteil 40% unter 50%",
+      "severity": 4
+    },
+    {
+      "checkId": "BETRKV_KABEL",
+      "description": "Kabelanschlusskosten",
+      "severity": 4
+    },
+    {
+      "checkId": "GEW_02",
+      "description": "Reparatur Heizungsanlage",
+      "severity": 4
+    },
+    {
+      "checkId": "GEW_02",
+      "description": "Instandsetzung Aufzug",
+      "severity": 4
+    },
+    {
+      "checkId": "GEW_01",
+      "description": "Center-Management-Pauschale",
+      "severity": 4
+    },
+    {
+      "checkId": "GEW_03",
+      "description": "Verwaltungskostenpauschale",
+      "severity": 3
+    },
+    {
+      "checkId": "BETRKV_VERTEILER",
+      "description": "Verteilerschlüssel",
+      "severity": 3
+    }
+  ],
+  "expectedSeverity": 4,
+  "expectedRouting": "escalate"
+}
