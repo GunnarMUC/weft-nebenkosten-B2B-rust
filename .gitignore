@@ -1,0 +1,56 @@
+# Rust
+target/
+**/*.rs.bk
+*.pdb
+
+# Node
+node_modules/
+.pnpm-store/
+
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+venv/
+.venv/
+
+# Docker
+*.log
+
+# Environment
+.env
+*.env.local
+*.env.production
+
+# IDE
+.idea/
+.vscode/
+*.swp
+*.swo
+*~
+.DS_Store
+
+# Data
+data/
+!data/.gitkeep
+
+# Restate
+restate-data/
+
+# Weft (subtree)
+weft/target/
+weft/**/target/
+
+# Chunker (submodule)
+chunker/data/
+
+# Generated
+catalog-link/
+*.zip
+*.pdf
+!tests/fixtures/*.pdf
+
+# OS
+Thumbs.db
