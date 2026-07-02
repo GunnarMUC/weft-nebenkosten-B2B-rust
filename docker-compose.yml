@@ -1,7 +1,9 @@
 version: "3.9"
 
 services:
-  # ── Datenbanken ──
+  # ═══════════════════════════════════════════════════════════════
+  # DATENBANKEN
+  # ═══════════════════════════════════════════════════════════════
   postgres:
     image: postgres:17-alpine
     environment:
@@ -26,7 +28,9 @@ services:
       test: ["CMD", "redis-cli", "ping"]
       interval: 5s
 
-  # ── Chunker (Daten-Aufbereitung) ──
+  # ═══════════════════════════════════════════════════════════════
+  # DATEN-AUFBEREITUNG (big-pdf-data-chunker)
+  # ═══════════════════════════════════════════════════════════════
   chunker-web:
     build:
       context: ./chunker
@@ -34,12 +38,12 @@ services:
     ports:
       - "${CHUNKER_PORT:-5000}:5000"
     environment:
-      OLLAMA_HOST: ${LLM_HOST:-http://localhost:11434}
+      OLLAMA_HOST: ${LLM_CHUNKER_HOST:-http://localhost:11434}
       OLLAMA_MODEL: ${LLM_CHUNKER_MODEL:-qwen2.5:14b}
       UPLOAD_FOLDER: /data/uploads
       OUTPUT_FOLDER: /data/output
       REDIS_URL: redis://redis:6379
-      SECRET_KEY: ${SECRET_KEY:-dev-secret-change-in-production}
+      SECRET_KEY: ${SECRET_KEY:-dev-secret}
     volumes:
       - uploads_data:/data/uploads
       - chunks_data:/data/output
@@ -53,7 +57,7 @@ services:
       dockerfile: Dockerfile
     command: rq worker --url redis://redis:6379
     environment:
-      OLLAMA_HOST: ${LLM_HOST:-http://localhost:11434}
+      OLLAMA_HOST: ${LLM_CHUNKER_HOST:-http://localhost:11434}
       OLLAMA_MODEL: ${LLM_CHUNKER_MODEL:-qwen2.5:14b}
       UPLOAD_FOLDER: /data/uploads
       OUTPUT_FOLDER: /data/output
@@ -65,7 +69,9 @@ services:
       redis:
         condition: service_healthy
 
-  # ── Weft Backend ──
+  # ═══════════════════════════════════════════════════════════════
+  # WEFT BACKEND
+  # ═══════════════════════════════════════════════════════════════
   restate:
     image: restatedev/restate:latest
     ports:
@@ -82,13 +88,13 @@ services:
 
   weft-orchestrator:
     build:
-      context: ./weft
-      dockerfile: Dockerfile.orchestrator
+      context: .
+      dockerfile: docker/weft.Dockerfile
+      target: orchestrator
     ports:
       - "${WEFT_ORCHESTRATOR_PORT:-9080}:9080"
     environment:
       RESTATE_URL: http://restate:${RESTATE_PORT:-8080}
-      RESTATE_PORT: ${RESTATE_PORT:-8080}
       DATABASE_URL: postgres://${POSTGRES_USER:-nkcheck}:${DB_PASSWORD}@postgres:5432/${POSTGRES_DB:-nkcheck}
       DEPLOYMENT_MODE: ${DEPLOYMENT_MODE:-local}
     depends_on:
@@ -99,8 +105,9 @@ services:
 
   weft-api:
     build:
-      context: ./weft
-      dockerfile: Dockerfile.api
+      context: .
+      dockerfile: docker/weft.Dockerfile
+      target: api
     ports:
       - "${WEFT_API_PORT:-3000}:3000"
     environment:
@@ -108,6 +115,7 @@ services:
       DATABASE_URL: postgres://${POSTGRES_USER:-nkcheck}:${DB_PASSWORD}@postgres:5432/${POSTGRES_DB:-nkcheck}
       DEPLOYMENT_MODE: ${DEPLOYMENT_MODE:-local}
       EXECUTOR_URL: http://restate:${RESTATE_PORT:-8080}
+      DASHBOARD_URL: http://operator-ui:${OPERATOR_UI_PORT:-5174}
     depends_on:
       postgres:
         condition: service_healthy
@@ -116,20 +124,26 @@ services:
 
   weft-node-runner:
     build:
-      context: ./weft
-      dockerfile: Dockerfile.node
+      context: .
+      dockerfile: docker/weft.Dockerfile
+      target: node-runner
     ports:
       - "${WEFT_NODE_RUNNER_PORT:-9082}:9082"
     environment:
       ORCHESTRATOR_URL: http://restate:${RESTATE_PORT:-8080}
       NODE_PORT: ${WEFT_NODE_RUNNER_PORT:-9082}
-      NODE_ID: node-runner-nkcheck
-      LLM_API_URL: ${LLM_HOST:-http://vllm:8000}
+      NODE_ID: nkcheck-node-runner
+      LLM_API_URL: ${LLM_HOST:-http://host.docker.internal:8000}
+      API_URL: http://weft-api:${WEFT_API_PORT:-3000}
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
     depends_on:
       restate:
         condition: service_healthy
 
-  # ── vLLM (GPU-abhangig) ──
+  # ═══════════════════════════════════════════════════════════════
+  # LLM ENGINE (vLLM)
+  # ═══════════════════════════════════════════════════════════════
   vllm:
     image: vllm/vllm-openai:latest
     ports:
@@ -155,21 +169,10 @@ services:
     runtime: nvidia
     profiles:
       - gpu
-      - production
 
-  # ── Web Frontends ──
-  weft-dashboard:
-    build:
-      context: ./weft/dashboard
-      dockerfile: Dockerfile
-    ports:
-      - "${DASHBOARD_PORT:-5173}:5173"
-    environment:
-      API_URL: http://weft-api:${WEFT_API_PORT:-3000}
-    depends_on:
-      weft-api:
-        condition: service_started
-
+  # ═══════════════════════════════════════════════════════════════
+  # FRONTENDS
+  # ═══════════════════════════════════════════════════════════════
   operator-ui:
     build:
       context: ./operator-ui
@@ -181,6 +184,21 @@ services:
     depends_on:
       weft-api:
         condition: service_started
+
+  # ── Development: Weft Dashboard (Web UI fuer Projekte) ──
+  weft-dashboard:
+    build:
+      context: ./weft
+      dockerfile: docker/Dockerfile.dashboard
+    ports:
+      - "${DASHBOARD_PORT:-5173}:5173"
+    environment:
+      API_URL: http://weft-api:${WEFT_API_PORT:-3000}
+    depends_on:
+      weft-api:
+        condition: service_started
+    profiles:
+      - full
 
 volumes:
   pgdata:

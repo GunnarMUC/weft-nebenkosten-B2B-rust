@@ -1,230 +1,264 @@
 <script>
   import { onMount } from 'svelte';
+  import { OperatorApiClient } from '$lib/api';
 
+  let apiBase = $state('');
   let token = $state('');
+  let client = $state(null);
   let connected = $state(false);
   let tasks = $state([]);
   let selectedTask = $state(null);
-  let pollInterval = null;
-  let decision = $state('');
+  let pollHandle = $state(null);
   let notes = $state('');
   let submitting = $state(false);
-  let apiBase = '';
+  let errorMsg = $state('');
 
   onMount(() => {
-    apiBase = localStorage.getItem('weft_api_url') || 'http://localhost:3000';
-    token = localStorage.getItem('operator_token') || '';
-    if (token) {
-      connect();
-    }
+    apiBase = localStorage.getItem('nkcheck_api_url') || 'http://localhost:3000';
+    token = localStorage.getItem('nkcheck_token') || '';
   });
 
-  function connect() {
-    localStorage.setItem('operator_token', token);
-    localStorage.setItem('weft_api_url', apiBase);
+  async function connect() {
+    errorMsg = '';
+    localStorage.setItem('nkcheck_api_url', apiBase);
+    localStorage.setItem('nkcheck_token', token);
+
+    const api = new OperatorApiClient(apiBase, token);
+    const valid = await api.validateToken();
+    if (!valid) {
+      errorMsg = 'Ungueltiger Token oder API nicht erreichbar';
+      return;
+    }
+
+    client = api;
     connected = true;
-    fetchTasks();
-    pollInterval = setInterval(fetchTasks, 5000);
+    await fetchTasks();
+    pollHandle = setInterval(fetchTasks, 5000);
   }
 
   function disconnect() {
     connected = false;
-    if (pollInterval) clearInterval(pollInterval);
+    if (pollHandle) { clearInterval(pollHandle); pollHandle = null; }
+    client = null;
     tasks = [];
     selectedTask = null;
   }
 
   async function fetchTasks() {
+    if (!client) return;
     try {
-      const res = await fetch(`${apiBase}/extension/token/${token}/tasks`);
-      if (!res.ok) throw new Error('Invalid token');
-      const data = await res.json();
-      tasks = data.tasks || [];
-    } catch (e) {
-      console.error('Fetch error:', e);
+      tasks = await client.fetchTasks();
+    } catch {
       disconnect();
     }
   }
 
-  function selectTask(task) {
-    selectedTask = task;
-    decision = '';
-    notes = '';
-  }
-
   async function submitDecision(action) {
-    if (!selectedTask) return;
+    if (!client || !selectedTask) return;
     submitting = true;
     try {
-      const url = action === 'cancel'
-        ? `${apiBase}/extension/token/${token}/cancel/${selectedTask.executionId}`
-        : `${apiBase}/extension/token/${token}/complete/${selectedTask.executionId}`;
-
-      const body = action === 'cancel' ? undefined : JSON.stringify({
-        nodeId: selectedTask.nodeId,
-        input: { decision: action === 'approve', notes: notes },
-        callbackId: selectedTask.executionId + '-' + selectedTask.nodeId + '-0',
-      });
-
-      const res = await fetch(url, {
-        method: 'POST',
-        headers: body ? { 'Content-Type': 'application/json' } : {},
-        body: body,
-      });
-
-      if (res.ok) {
-        selectedTask = null;
-        fetchTasks();
+      if (action === 'cancel') {
+        await client.cancelTask(selectedTask.executionId);
+      } else {
+        await client.completeTask(
+          selectedTask.executionId,
+          selectedTask.nodeId,
+          {
+            decision: action === 'approve',
+            notes: notes,
+          }
+        );
       }
+      selectedTask = null;
+      notes = '';
+      await fetchTasks();
     } catch (e) {
-      console.error('Submit error:', e);
+      errorMsg = `Fehler beim Submit: ${e.message}`;
     } finally {
       submitting = false;
     }
   }
 
-  function severityColor(meta) {
-    try {
-      const sev = meta?.data?.severity || 0;
-      if (sev >= 4) return 'border-red-500 bg-red-50';
-      if (sev >= 2) return 'border-amber-500 bg-amber-50';
-      return 'border-green-500 bg-green-50';
-    } catch { return 'border-gray-300 bg-white'; }
+  function taskSeverity(task) {
+    try { return task.metadata?.data?.severity ?? task.data?.severity ?? 0; }
+    catch { return 0; }
+  }
+
+  function severityColor(sev) {
+    if (sev >= 4) return 'border-l-red-500 bg-red-50';
+    if (sev >= 2) return 'border-l-amber-500 bg-amber-50';
+    return 'border-l-green-500 bg-green-50';
+  }
+
+  function formatDate(iso) {
+    try { return new Date(iso).toLocaleString('de-DE'); }
+    catch { return iso || '-'; }
   }
 </script>
 
-<div class="flex flex-col h-screen bg-gray-50">
+<div class="flex flex-col min-h-screen bg-gray-50 font-sans">
   {#if !connected}
-    <div class="flex-1 flex items-center justify-center">
-      <div class="bg-white rounded-lg shadow-lg p-8 w-96">
-        <h1 class="text-2xl font-bold mb-6 text-gray-800">NK-Check Operator</h1>
+    <!-- Login Screen -->
+    <div class="flex-1 flex items-center justify-center p-6">
+      <div class="bg-white rounded-xl shadow-lg p-8 w-full max-w-sm">
+        <div class="text-center mb-6">
+          <h1 class="text-2xl font-bold text-gray-800">NK-Check Operator</h1>
+          <p class="text-sm text-gray-500 mt-1">Human Review Interface</p>
+        </div>
 
-        <label class="block text-sm font-medium text-gray-700 mb-1">Weft API URL</label>
+        <label class="block text-xs font-medium text-gray-600 mb-1">Weft API URL</label>
         <input
           type="text" bind:value={apiBase}
           placeholder="http://localhost:3000"
-          class="w-full px-3 py-2 border rounded-md mb-4 text-sm"
+          class="w-full px-3 py-2 border border-gray-300 rounded-lg mb-4 text-sm focus:ring-2 focus:ring-indigo-300 focus:outline-none"
         />
 
-        <label class="block text-sm font-medium text-gray-700 mb-1">Operator Token</label>
+        <label class="block text-xs font-medium text-gray-600 mb-1">Operator Token</label>
         <input
           type="password" bind:value={token}
-          placeholder="Extension-Token eingeben"
-          class="w-full px-3 py-2 border rounded-md mb-6 text-sm"
+          placeholder="Extension-Token"
+          class="w-full px-3 py-2 border border-gray-300 rounded-lg mb-2 text-sm focus:ring-2 focus:ring-indigo-300 focus:outline-none"
         />
+        <p class="text-xs text-gray-400 mb-6">
+          Token aus dem Weft-Dashboard (Einstellungen &rarr; Extension-Token)
+        </p>
+
+        {#if errorMsg}
+          <div class="bg-red-50 text-red-700 text-sm p-3 rounded-lg mb-4">{errorMsg}</div>
+        {/if}
 
         <button
           onclick={connect}
-          disabled={!token}
-          class="w-full bg-indigo-600 text-white py-2 rounded-md hover:bg-indigo-700 disabled:opacity-50 font-medium"
+          disabled={!token || !apiBase}
+          class="w-full bg-indigo-600 text-white py-2.5 rounded-lg hover:bg-indigo-700 disabled:opacity-40 font-medium transition-colors"
         >
           Verbinden
         </button>
       </div>
     </div>
   {:else}
-    <header class="bg-white border-b px-6 py-3 flex items-center justify-between shadow-sm">
+    <!-- Connected: Split View -->
+    <header class="bg-white border-b border-gray-200 px-6 py-3 flex items-center justify-between shadow-sm">
       <div class="flex items-center gap-3">
         <h1 class="text-lg font-bold text-gray-800">NK-Check Operator</h1>
-        <span class="text-xs bg-green-100 text-green-700 px-2 py-0.5 rounded-full">Verbunden</span>
+        <span class="text-xs bg-green-100 text-green-700 px-2 py-0.5 rounded-full font-medium">Verbunden</span>
       </div>
       <div class="flex items-center gap-3">
-        <span class="text-sm text-gray-500">{tasks.length} ausstehende Tasks</span>
-        <button onclick={disconnect} class="text-sm text-red-600 hover:text-red-800">Trennen</button>
+        <span class="text-sm text-gray-500">{tasks.length} ausstehend</span>
+        <button onclick={disconnect} class="text-sm text-red-600 hover:text-red-800 font-medium">Trennen</button>
       </div>
     </header>
 
     <div class="flex-1 flex overflow-hidden">
-      <!-- Task List -->
-      <div class="w-80 border-r bg-white overflow-y-auto">
+      <!-- Left: Task List -->
+      <div class="w-80 border-r border-gray-200 bg-white overflow-y-auto">
         {#if tasks.length === 0}
-          <div class="p-6 text-center text-gray-400">
-            <div class="text-4xl mb-2">&#10003;</div>
+          <div class="flex flex-col items-center justify-center h-64 text-gray-400">
+            <span class="text-4xl mb-2">&#10003;</span>
             <p class="text-sm">Keine ausstehenden Tasks</p>
           </div>
         {:else}
-          {#each tasks as task (task.executionId + task.nodeId)}
+          {#each tasks as task (task.executionId + '/' + task.nodeId)}
+            {@const sev = taskSeverity(task)}
             <button
-              onclick={() => selectTask(task)}
-              class="w-full text-left p-4 border-b hover:bg-gray-50 transition-colors
-                     {selectedTask?.executionId === task.executionId ? 'bg-indigo-50 border-l-4 border-l-indigo-500' : ''}"
+              onclick={() => { selectedTask = task; notes = ''; }}
+              class="w-full text-left p-4 border-b border-gray-100 hover:bg-gray-50 transition-colors
+                     border-l-4 {selectedTask?.executionId === task.executionId ? 'bg-indigo-50 border-l-indigo-500!' : severityColor(sev)}"
             >
               <div class="flex items-center justify-between mb-1">
-                <span class="font-medium text-sm text-gray-800 truncate">{task.title || 'Task'}</span>
-                <span class="{severityColor(task.metadata) + ' px-1.5 py-0.5 rounded text-xs font-medium'}">
-                  {task.metadata?.data?.severity || '-'}
+                <span class="font-medium text-sm text-gray-800 truncate max-w-[200px]">
+                  {task.title || 'Prufauftrag'}
                 </span>
+                {#if sev > 0}
+                  <span class="text-xs px-1.5 py-0.5 rounded font-medium leading-tight
+                    {sev >= 4 ? 'bg-red-100 text-red-700' : sev >= 2 ? 'bg-amber-100 text-amber-700' : 'bg-green-100 text-green-700'}">
+                    {sev}/5
+                  </span>
+                {/if}
               </div>
               <p class="text-xs text-gray-500 truncate">{task.description || 'Keine Beschreibung'}</p>
-              <p class="text-xs text-gray-400 mt-1">{new Date(task.createdAt).toLocaleString('de-DE')}</p>
+              <p class="text-xs text-gray-400 mt-1">{formatDate(task.createdAt)}</p>
             </button>
           {/each}
         {/if}
       </div>
 
-      <!-- Detail Panel -->
+      <!-- Right: Detail Panel -->
       <div class="flex-1 overflow-y-auto p-6">
         {#if selectedTask}
-          <div class="max-w-2xl mx-auto">
-            <h2 class="text-xl font-bold text-gray-800 mb-2">{selectedTask.title}</h2>
-            <p class="text-sm text-gray-600 mb-6">{selectedTask.description}</p>
+          <div class="max-w-2xl">
+            <div class="mb-6">
+              <h2 class="text-xl font-bold text-gray-800 mb-1">{selectedTask.title || 'Prufauftrag'}</h2>
+              {#if selectedTask.description}
+                <p class="text-sm text-gray-600">{selectedTask.description}</p>
+              {/if}
+              <p class="text-xs text-gray-400 mt-1">
+                Execution: <code class="bg-gray-100 px-1 rounded">{selectedTask.executionId}</code>
+              </p>
+            </div>
 
-            {#if selectedTask.formSchema?.fields}
-              <div class="space-y-4 mb-8">
+            <!-- Form Fields -->
+            {#if selectedTask.formSchema?.fields && selectedTask.formSchema.fields.length > 0}
+              <div class="space-y-3 mb-8">
                 {#each selectedTask.formSchema.fields as field}
-                  <div class="bg-gray-50 rounded-lg p-4">
-                    <p class="text-xs text-gray-400 uppercase mb-1">{field.fieldType}</p>
+                  <div class="bg-gray-50 rounded-lg p-4 border border-gray-100">
+                    <div class="flex items-center gap-2 mb-2">
+                      <span class="text-[10px] font-mono uppercase bg-gray-200 px-1.5 py-0.5 rounded text-gray-500">
+                        {field.fieldType}
+                      </span>
+                      <span class="text-xs font-medium text-gray-500">{field.key}</span>
+                    </div>
                     {#if field.fieldType === 'display'}
-                      <p class="text-sm text-gray-700 whitespace-pre-wrap">{field.value || '(keine Daten)'}</p>
-                    {:else if field.fieldType === 'approve_reject'}
-                      <!-- handled by buttons below -->
+                      <p class="text-sm text-gray-700 whitespace-pre-wrap leading-relaxed">
+                        {JSON.stringify(field.value) ?? '(keine Daten)'}
+                      </p>
                     {:else}
-                      <p class="text-sm font-medium text-gray-800">{field.key}</p>
+                      <p class="text-xs text-gray-400">Feld-Typ: {field.fieldType}</p>
                     {/if}
                   </div>
                 {/each}
               </div>
             {/if}
 
+            <!-- Notes -->
             <div class="mb-4">
-              <label class="block text-sm font-medium text-gray-700 mb-1">Notizen (optional)</label>
+              <label class="block text-xs font-medium text-gray-600 mb-1">Interne Notizen</label>
               <textarea
                 bind:value={notes}
                 rows="3"
-                placeholder="Interne Notizen zur Entscheidung..."
-                class="w-full px-3 py-2 border rounded-md text-sm"
+                placeholder="Notizen zur Entscheidung..."
+                class="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-indigo-300 focus:outline-none resize-y"
               ></textarea>
             </div>
 
+            <!-- Action Buttons -->
             <div class="flex gap-3">
               <button
                 onclick={() => submitDecision('approve')}
                 disabled={submitting}
-                class="flex-1 bg-green-600 text-white py-2.5 rounded-md hover:bg-green-700 disabled:opacity-50 font-medium"
-              >
-                {submitting ? '...' : 'Genehmigen'}
-              </button>
+                class="flex-1 bg-green-600 text-white py-2.5 rounded-lg hover:bg-green-700 disabled:opacity-40 font-medium transition-colors"
+              >{submitting ? '...' : 'Genehmigen'}</button>
               <button
                 onclick={() => submitDecision('reject')}
                 disabled={submitting}
-                class="flex-1 bg-red-600 text-white py-2.5 rounded-md hover:bg-red-700 disabled:opacity-50 font-medium"
-              >
-                {submitting ? '...' : 'Ablehnen'}
-              </button>
+                class="flex-1 bg-red-600 text-white py-2.5 rounded-lg hover:bg-red-700 disabled:opacity-40 font-medium transition-colors"
+              >{submitting ? '...' : 'Ablehnen'}</button>
               <button
                 onclick={() => submitDecision('cancel')}
                 disabled={submitting}
-                class="flex-1 bg-gray-600 text-white py-2.5 rounded-md hover:bg-gray-700 disabled:opacity-50 font-medium"
-              >
-                {submitting ? '...' : 'Uberspringen'}
-              </button>
+                class="flex-1 bg-gray-500 text-white py-2.5 rounded-lg hover:bg-gray-600 disabled:opacity-40 font-medium transition-colors"
+              >{submitting ? '...' : 'Ueberspringen'}</button>
             </div>
+
+            {#if errorMsg}
+              <div class="bg-red-50 text-red-700 text-sm p-3 rounded-lg mt-4">{errorMsg}</div>
+            {/if}
           </div>
         {:else}
           <div class="h-full flex items-center justify-center text-gray-400">
             <div class="text-center">
-              <div class="text-5xl mb-3">&#8592;</div>
-              <p>Task auswahlen zur Bearbeitung</p>
+              <span class="text-5xl block mb-3">&larr;</span>
+              <p class="text-sm">Task aus der Liste auswaehlen</p>
             </div>
           </div>
         {/if}

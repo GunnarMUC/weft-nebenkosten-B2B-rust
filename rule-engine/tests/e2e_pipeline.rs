@@ -145,7 +145,7 @@ mod e2e_tests {
         for chunk in &chunks {
             if let Some(tables) = chunk.get("tables").and_then(|t| t.as_array()) {
                 for table in tables {
-                    let headers: Vec<String> = table.get("headers")
+                    let _headers: Vec<String> = table.get("headers")
                         .and_then(|h| h.as_array())
                         .map(|a| a.iter().filter_map(|v| v.as_str().map(String::from)).collect())
                         .unwrap_or_default();
