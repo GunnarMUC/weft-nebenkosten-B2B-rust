@@ -1,6 +1,6 @@
 //! VllmInference Node -- Local LLM inference via vLLM OpenAI-compatible API.
 //!
-//! This node replaces the cloud-only LlmInference node for on-premises deployments.
+//! On-premises replacement for the cloud-only LlmInference node.
 //! Communicates via HTTP POST to a vLLM server (/v1/chat/completions).
 
 use async_trait::async_trait;
@@ -44,58 +44,70 @@ impl Node for VllmInferenceNode {
     }
 
     async fn execute(&self, ctx: ExecutionContext) -> NodeResult {
-        use serde_json::json;
+        let vllm_config = ctx.input.get("config")
+            .and_then(|v| v.as_object())
+            .map(|o| serde_json::Value::Object(o.clone()));
 
-        let model = ctx.config.get("model")
+        let config_source = vllm_config.as_ref().unwrap_or(&ctx.config);
+
+        let model = config_source.get("model")
             .and_then(|v| v.as_str())
             .unwrap_or("qwen2.5:32b");
 
-        let base_url = ctx.config.get("baseUrl")
+        let base_url = config_source.get("baseUrl")
             .and_then(|v| v.as_str())
             .unwrap_or("http://localhost:8000");
 
         let system_prompt = ctx.input.get("systemPrompt")
             .and_then(|v| v.as_str())
+            .or_else(|| config_source.get("systemPrompt").and_then(|v| v.as_str()))
             .unwrap_or("");
 
         let prompt = ctx.input.get("prompt")
             .and_then(|v| v.as_str())
             .unwrap_or("");
 
-        let temperature = ctx.config.get("temperature")
+        let temperature = config_source.get("temperature")
             .and_then(|v| v.as_f64())
             .unwrap_or(0.7);
 
-        let max_tokens = ctx.config.get("maxTokens")
+        let max_tokens = config_source.get("maxTokens")
             .and_then(|v| v.as_u64())
             .unwrap_or(4096);
 
-        let parse_json = ctx.config.get("parseJson")
+        let top_p = config_source.get("topP")
+            .and_then(|v| v.as_f64())
+            .unwrap_or(0.9);
+
+        let parse_json = config_source.get("parseJson")
             .and_then(|v| v.as_bool())
             .unwrap_or(false);
 
-        let client = reqwest::Client::new();
-        let url = format!("{}/v1/chat/completions", base_url);
+        let url = format!("{}/v1/chat/completions", base_url.trim_end_matches('/'));
 
-        let mut messages = Vec::new();
+        let mut messages: Vec<serde_json::Value> = Vec::new();
         if !system_prompt.is_empty() {
-            messages.push(json!({"role": "system", "content": system_prompt}));
+            messages.push(serde_json::json!({"role": "system", "content": system_prompt}));
         }
-        messages.push(json!({"role": "user", "content": prompt}));
+        messages.push(serde_json::json!({"role": "user", "content": prompt}));
 
-        let body = json!({
+        let body = serde_json::json!({
             "model": model,
             "messages": messages,
             "temperature": temperature,
             "max_tokens": max_tokens,
+            "top_p": top_p,
         });
 
-        tracing::info!("vLLM request: model={}, prompt_len={}, url={}", model, prompt.len(), url);
+        tracing::info!(
+            "vLLM request: model={}, prompt_len={}, url={}",
+            model, prompt.len(), url
+        );
 
-        match client.post(&url).json(&body).send().await {
+        match ctx.http_client.post(&url).json(&body).send().await {
             Ok(response) if response.status().is_success() => {
                 let data: serde_json::Value = response.json().await
-                    .unwrap_or(json!({"error": "Failed to parse vLLM response"}));
+                    .unwrap_or(serde_json::json!({"error": "Failed to parse vLLM response"}));
 
                 let text = data["choices"][0]["message"]["content"]
                     .as_str()
@@ -103,7 +115,8 @@ impl Node for VllmInferenceNode {
                     .to_string();
 
                 let response_value = if parse_json {
-                    serde_json::from_str(&text)
+                    let cleaned = text.trim();
+                    serde_json::from_str(cleaned)
                         .unwrap_or_else(|_| serde_json::Value::String(text.clone()))
                 } else {
                     serde_json::Value::String(text)
@@ -125,16 +138,11 @@ impl Node for VllmInferenceNode {
                 NodeResult::completed(serde_json::Value::Object(output))
             }
             Ok(response) => {
-                let status = response.status();
                 let body = response.text().await.unwrap_or_default();
-                let msg = format!("vLLM error ({}): {}", status, body);
-                tracing::error!("{}", msg);
-                NodeResult::failed(&msg)
+                NodeResult::failed(&format!("vLLM error: {}", body))
             }
             Err(e) => {
-                let msg = format!("vLLM connection error: {}", e);
-                tracing::error!("{}", msg);
-                NodeResult::failed(&msg)
+                NodeResult::failed(&format!("vLLM connection error: {}", e))
             }
         }
     }

@@ -1,0 +1,3 @@
+[submodule "chunker"]
+	path = chunker
+	url = https://github.com/GunnarMUC/big-pdf-data-chunker.git
