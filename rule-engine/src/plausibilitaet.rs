@@ -2,7 +2,7 @@ use super::{Finding, Severity, AnalysisResult};
 
 /// Statistische Plausibilitaets-Checks.
 /// Vergleicht Kostenansaetze mit Branchen-Benchmarks und Vorjahreswerten.
-
+///
 /// Deutschland-Durchschnitt: Nebenkosten ca. 2,50-3,50 EUR/m2/Monat (2024).
 /// Fuer Gewerbe tendenziell hoeher (3,00-5,00 EUR/m2/Monat).
 const GEWERBE_MIN_EUR_PER_SQM: f64 = 1.50;

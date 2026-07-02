@@ -1,0 +1,44 @@
+# Weft Test Project: NK-Check Industrie Demo
+# Dieses Projekt demonstriert die gesamte Analyse-Pipeline.
+# In das Weft-Dashboard importieren (Project -> Import) und ausfuehren.
+
+# ── Eingabedaten ──
+chunk_file = Text {
+  label: "JSONL-Chunk Datei"
+  value: "/data/chunks/test_gewerbe_2024.jsonl"
+}
+
+# ── vLLM Konfiguration ──
+llm_config = VllmInference {
+  label: "Qwen 2.5 32B (lokal)"
+}
+
+llm_config.model = "qwen2.5:32b"
+llm_config.baseUrl = "http://host.docker.internal:8000"
+llm_config.temperature = 0.2
+llm_config.maxTokens = 4096
+llm_config.parseJson = false
+llm_config.systemPrompt = """
+Du bist Spezialist fuer deutsche Nebenkostenabrechnungen.
+Analysiere den folgenden Abrechnungstext und extrahiere:
+1. Alle Kostenpositionen mit Betraegen
+2. Verteilerschluessel (Flaeche, Verbrauch, etc.)
+3. Auffaelligkeiten (unvollstaendige Angaben, fehlende Belege)
+
+Antworte strukturiert in deutscher Sprache.
+"""
+
+# ── LLM-Analyse ──
+analyzer = VllmInference -> (response: String) {
+  label: "Kostenpositionen analysieren"
+}
+
+analyzer.prompt = chunk_file.value
+analyzer.config = llm_config.config
+
+# ── Debug-Ausgabe ──
+output = Debug {
+  label: "LLM-Analyse"
+}
+
+output.data = analyzer.response

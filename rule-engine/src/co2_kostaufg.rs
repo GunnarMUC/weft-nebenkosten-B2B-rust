@@ -2,7 +2,6 @@ use super::{Finding, Severity, AnalysisResult};
 
 /// CO2-Kostenaufteilungsgesetz (CO2KostAufG)
 /// 10-Stufen-Modell nach spezifischem CO2-Ausstoss je m2/a
-
 const STUFEN: [(f64, f64, f64); 10] = [
     // (min, max, vermieter_anteil)
     (0.0, 12.0, 0.0),

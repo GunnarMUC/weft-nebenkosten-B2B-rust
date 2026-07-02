@@ -3,7 +3,7 @@ use super::{Finding, Severity, AnalysisResult};
 /// Pruefungen fuer Gewerbemietverhaeltnisse.
 /// Anders als bei Wohnraum gilt hier die Parteiautonomie --
 /// der Mietvertrag bestimmt die Umlagefaehigkeit.
-
+///
 /// Centerkosten / Servicepauschalen muessen transparent aufgeschluesselt sein.
 pub fn check_centerkosten(positionen: &[GewerbePosition]) -> Vec<Finding> {
     let mut findings = Vec::new();
