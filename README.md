@@ -1,6 +1,7 @@
 # NK-Check Industrie
 
 [![License](https://img.shields.io/badge/License-Apache%202.0-blue)](LICENSE) [![CI](https://github.com/GunnarMUC/weft-nebenkosten-B2B-rust/actions/workflows/ci.yml/badge.svg)](https://github.com/GunnarMUC/weft-nebenkosten-B2B-rust/actions)
+[![Lint](https://github.com/GunnarMUC/weft-nebenkosten-B2B-rust/actions/workflows/lint.yml/badge.svg)](https://github.com/GunnarMUC/weft-nebenkosten-B2B-rust/actions)
 
 **Automatisierte Nebenkosten-Prufung fur Industrieunternehmen -- On-Premises, DSGVO-konform, KI-gestutzt.**
 
