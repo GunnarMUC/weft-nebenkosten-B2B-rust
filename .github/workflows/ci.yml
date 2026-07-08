@@ -16,5 +16,6 @@ jobs:
       - name: Install Rust
         uses: dtolnay/rust-toolchain@stable
       - name: Check compilation
-        run: cargo check --workspace
+        working-directory: rule-engine
+        run: cargo check
 
