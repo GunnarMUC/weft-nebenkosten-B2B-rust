@@ -1,5 +1,7 @@
 # NK-Check Industrie
 
+[![CI](https://github.com/GunnarMUC/weft-nebenkosten-B2B-rust/actions/workflows/ci.yml/badge.svg)](https://github.com/GunnarMUC/weft-nebenkosten-B2B-rust/actions)
+
 **Automatisierte Nebenkosten-Prufung fur Industrieunternehmen -- On-Premises, DSGVO-konform, KI-gestutzt.**
 
 NK-Check Industrie verarbeitet grosse, unstrukturierte Nebenkostenabrechnungen
